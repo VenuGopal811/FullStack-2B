@@ -3,10 +3,257 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Matrix Search</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: black;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        .search-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 40px;
+            border: 2px solid #0f0;
+            border-radius: 12px;
+            box-shadow: 0 0 25px rgba(0, 255, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+        h1 {
+            color: #0f0;
+            margin-top: 0;
+            margin-bottom: 25px;
+            text-shadow: 0 0 10px #0f0;
+            letter-spacing: 2px;
+        }
+        .form-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        input[type="text"] {
+            width: 350px;
+            padding: 12px 15px;
+            font-size: 18px;
+            border: 1px solid #0f0;
+            background: black;
+            color: #0f0;
+            outline: none;
+            border-radius: 5px;
+            transition: box-shadow 0.3s ease;
+        }
+        input[type="text"]:focus {
+            box-shadow: 0 0 15px #0f0;
+        }
+        input[type="text"]::placeholder {
+            color: rgba(0, 255, 0, 0.5);
+        }
+        input[type="submit"] {
+            padding: 12px 25px;
+            font-size: 18px;
+            background: #0f0;
+            color: black;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        input[type="submit"]:hover {
+            background: #fff;
+            color: black;
+            box-shadow: 0 0 20px #fff;
+        }
+    </style>
 </head>
 <body>
-    <h1>Welcome to the Home Page</h1>
-    <p>This is a simple home page.</p>
+    <canvas id="matrix"></canvas>
+    
+    <div class="search-container">
+        <h1>JACK IN</h1>
+        <form action="https://www.google.com/search" method="get" target="_blank">
+            <div class="form-group">
+                <input type="text" name="q" placeholder="Enter query..." required autofocus autocomplete="off">
+                <input type="submit" value="Search">
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            return Math.floor(canvas.width / 16); // calculate columns based on font size 16
+        }
+
+        let columns = resizeCanvas();
+        
+        // Characters for matrix rain (Katakana + Latin + Numbers)
+        const letters = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*';
+        const fontSize = 16;
+        
+        // Array to store drop Y positions
+        let drops = [];
+        for (let x = 0; x < columns; x++) {
+            drops[x] = (Math.random() * -100) * fontSize; // Start above screen
+        }
+
+        // Particle system for splatter
+        let particles = [];
+        class Particle {
+            constructor(x, y, text) {
+                this.x = x;
+                this.y = y;
+                this.text = text;
+                // Scatter roughly upwards and outwards
+                const angle = Math.random() * Math.PI - 0; // Upwards spread
+                const speed = Math.random() * 5 + 3;
+                this.vx = Math.cos(angle) * speed * (Math.random() < 0.5 ? -1 : 1);
+                this.vy = -Math.sin(angle) * speed - 2;
+                this.gravity = 0.5;
+                this.life = 1.0;
+                this.decay = Math.random() * 0.05 + 0.02;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += this.gravity;
+                this.life -= this.decay;
+            }
+
+            draw(ctx) {
+                if (this.life > 0) {
+                    ctx.fillStyle = `rgba(0, 255, 0, ${this.life})`;
+                    if (Math.random() > 0.8) {
+                        ctx.fillStyle = `rgba(255, 255, 255, ${this.life})`;
+                    }
+                    ctx.shadowBlur = 5;
+                    ctx.shadowColor = '#0F0';
+                    ctx.fillText(this.text, this.x, this.y);
+                }
+            }
+        }
+
+        // Mouse interaction for 3D effect and splatter physics
+        let mouseX = canvas.width / 2;
+        let mouseY = canvas.height / 2;
+        let lastMouseX = mouseX;
+        let lastMouseY = mouseY;
+        
+        document.addEventListener('mousemove', (e) => {
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            
+            // Subtle 3D tilt effect on the search container based on mouse position
+            const container = document.querySelector('.search-container');
+            const tiltX = (window.innerWidth / 2 - mouseX) / 80;
+            const tiltY = (mouseY - window.innerHeight / 2) / 80;
+            container.style.transform = `translate(-50%, -50%) perspective(1000px) rotateY(${tiltX}deg) rotateX(${tiltY}deg)`;
+        });
+
+        // Add some basic touch support
+        document.addEventListener('touchmove', (e) => {
+            if(e.touches.length > 0) {
+                mouseX = e.touches[0].clientX;
+                mouseY = e.touches[0].clientY;
+            }
+        });
+
+        const dropSpeed = fontSize;
+        const cursorRadius = 60; // Splatter trigger radius
+
+        function draw() {
+            // Reset shadow to avoid tinting the background clear
+            ctx.shadowBlur = 0;
+            // Translucent black to create trailing effect
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.font = fontSize + 'px monospace';
+
+            // Iterate through rain columns
+            for (let i = 0; i < drops.length; i++) {
+                const text = letters.charAt(Math.floor(Math.random() * letters.length));
+                const dropX = i * fontSize;
+                const dropY = drops[i];
+
+                // Standard matrix green
+                ctx.fillStyle = '#0F0';
+                ctx.shadowBlur = 0;
+                if (Math.random() > 0.98) {
+                    ctx.fillStyle = '#FFF'; // Occasional white character
+                }
+
+                // Check collision with mouse pointer
+                const distToMouse = Math.sqrt(Math.pow(mouseX - dropX, 2) + Math.pow(mouseY - dropY, 2));
+
+                if (distToMouse < cursorRadius) {
+                    // Splatter effect instead of falling normally
+                    for(let p = 0; p < 2; p++) {
+                        particles.push(new Particle(dropX, dropY, text));
+                    }
+                    // Reset character to top after exploding
+                    drops[i] = (Math.random() * -100);
+                } else {
+                    // Draw normal rain drop
+                    ctx.fillText(text, dropX, dropY);
+
+                    // Move drop down
+                    drops[i] += dropSpeed;
+
+                    // Reset drop to top with random delay when it goes off screen
+                    if (drops[i] > canvas.height && Math.random() > 0.975) {
+                        drops[i] = 0;
+                    }
+                }
+            }
+
+            // Update and draw splatter particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw(ctx);
+                if (particles[i].life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            const oldCols = columns;
+            columns = resizeCanvas();
+            
+            // Adjust drops array on resize
+            if (columns > oldCols) {
+                for (let i = oldCols; i < columns; i++) {
+                    drops[i] = (Math.random() * -100) * fontSize;
+                }
+            }
+        });
+
+        // Run animation at ~30fps
+        setInterval(draw, 33);
+    </script>
 </body>
 </html>
