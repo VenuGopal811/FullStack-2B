@@ -6,3 +6,6 @@ from django.shortcuts import render
 def about(request):
     # return render(request, 'core/about.html')
     return HttpResponse("This is the about page")
+ 
+def home(request):
+    return render(request, 'home.html')
